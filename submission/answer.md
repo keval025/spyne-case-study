@@ -48,5 +48,5 @@ Tomorrow I run `audit.py` on the day's calls. Pass: 0 FALSE_BOOKED, 0 WRONG_TIME
 
 ## f. Two AI answers I did not take
 
-1. **Ungrounded claims.** The AI's script counted 3 of 20 calls with an unsourced claim, using the word "rupees". I read the transcripts and found 5 of 20, adding C-10 (pickup charge) and C-15 (insurance). I used 5.
-2. **Hard-coded exclusion.** The AI's lead counter excluded C-19 by call ID. That is not a rule, and C-19 never called `check_availability` anyway. I removed it.
+1. Unsourced claims. The AI's script found 3 of 20 calls, by searching for "rupees". I read every transcript and found 5 of 20, adding C-10 (pickup charge) and C-15 (insurance). I used 5.
+2. Which call to trace. The AI first leaned to C-02, which has four problems at once. I chose C-08 because it has one failing tool call (`check_availability`, 16:52:05) that I can defend line by line.
