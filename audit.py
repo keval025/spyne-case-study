@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Call tracker / auditor for the Sparsh Motors pack.
 
-Usage: python3 -I audit.py path/to/2-call-records.md
+Usage: python3 -I audit.py path/to/2-call-records.md\n       python3 -I audit.py --exhibit path/to/2-call-records.md   (markdown table)
 
 Rebuilds the weekly summary from the TOOL LOGS (what actually happened) and
 compares it with what the assistant claimed in log_outcome.
@@ -137,10 +137,36 @@ def main(path):
     print("leads left, no callback  :", cnt(lambda c: has(c, "SLOTS_CHECKED_NO_BOOKING")
                                               and not tools(c, "log_callback")
                                               and not tools(c, "transfer_to_advisor")
-                                              and not c["open_jobs"] and c["id"] != "C-19"))
+                                              and not c["open_jobs"]))
     avg = sum(c["secs"] for c in calls) / n
     print(f"avg duration             : {int(avg // 60)} min {round(avg % 60)} sec over {n} calls")
 
 
+# What the caller wanted, read by hand from the transcripts (not derivable from logs).
+INTENT = {
+    "C-01": "book periodic", "C-02": "status (JC-2274)", "C-03": "price enquiry",
+    "C-04": "status (JC-2291)", "C-05": "price + book", "C-06": "rework complaint",
+    "C-07": "status (JC-2288)", "C-08": "book AC diagnostic", "C-09": "book brake check",
+    "C-10": "pickup/drop enquiry", "C-11": "part status (JC-2296)", "C-12": "billing dispute",
+    "C-13": "book Sunday", "C-14": "status (JC-2302)", "C-15": "insurance dent enquiry",
+    "C-16": "status, 3rd call (JC-2287)", "C-17": "claim status (JC-2280)", "C-18": "book 40k service",
+    "C-19": "wrong number", "C-20": "status, urgent (JC-2309)",
+}
+
+
+def exhibit(path):
+    calls = parse(open(path, encoding="utf8").read())
+    print("| Call | Caller wanted (manual read) | Assistant logged | book_appointment ok | Tool-log problems |")
+    print("|---|---|---|---|---|")
+    for c in calls:
+        fl = audit(c)
+        c_ = "; ".join(x.split(":")[0].split(" (")[0] for x in fl) or "none"
+        print(f"| {c['id']} | {INTENT[c['id']]} | {c['logged']} | "
+              f"{'yes' if c['real_booking'] else 'no'} | {c_} |")
+
+
 if __name__ == "__main__":
-    main(sys.argv[1])
+    if sys.argv[1] == "--exhibit":
+        exhibit(sys.argv[2])
+    else:
+        main(sys.argv[1])
