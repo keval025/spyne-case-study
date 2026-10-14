@@ -1,5 +1,11 @@
 # AI session log: Sparsh Motors FDE case study
 
+**Structure of this file**
+- **Part 1** is the real record: my prompts exactly as typed, with what happened after each.
+- **Part 2** is a prompt playbook: six improved prompts, each with a condensed example response. Written *after* the session. They are not what I typed. The responses are summarised from real results in this session (`audit.py` output and the pack), not new invented data.
+
+# Part 1: Verbatim session record
+
 Tool: Claude Code (cloud session). Date: 14 October. Branch: `claude/nifty-pasteur-00rd4u`.
 Prompts below are quoted exactly as I typed them, spelling mistakes included. The "What happened" lines are summaries written afterwards. The full session link is the source of truth.
 
@@ -89,17 +95,89 @@ Prompts below are quoted exactly as I typed them, spelling mistakes included. Th
 
 ---
 
-# Appendix (written afterwards, not part of the original session)
+---
 
-This shows how I would phrase my main prompts today. It is a reflection on my prompting, not a record of what I typed.
+---
 
-**Turn 1, better version:**
-> Role: you are helping me prepare an FDE case study. Task: read the brief and the 20 call records. Before writing anything, tell me (1) what the brief asks for, (2) the failure patterns you can find, each with call IDs, and (3) what you cannot determine from the pack. Constraint: every number needs a denominator and a source.
+# Part 2: Prompt playbook with example responses (written afterwards, not part of the original session)
 
-**Turn 2, better version:**
-> My hypothesis is that the weekly summary is built from the assistant's own log_outcome, not from tool results. Try to prove me wrong. Write a script that recomputes the key metrics from the tool logs, and list any number where the two disagree.
+Six prompts as I would write them today, using Role / Context / Task / Constraints / Output. Each response is condensed from results already produced in this session. All numbers come from the pack and `audit.py`.
 
-**Turn 7, better version:**
-> I want to emphasise the status-call problem. Is there a true, sourced number larger than 8 of 20 that supports this? If not, say so.
+## Prompt 1. Read the pack
+> **Role:** You are a senior forward-deployed engineer reviewing an AI phone assistant for a car workshop.
+> **Context:** I have 20 call records with transcripts, logged outcomes and tool logs, a weekly summary sent to management, and a tool reference.
+> **Task:** Read everything before writing anything. Then tell me: (1) what the brief asks me to deliver, (2) the failure patterns you can find, each with call IDs, (3) what you cannot determine from the pack.
+> **Constraints:** Every number needs a denominator and a call ID. If you are unsure, say so instead of guessing.
+> **Output:** Three headed sections, with a table for the patterns.
 
-**What I would change in how I work:** state my hypothesis first, ask for what is unknown, and require call IDs for every claim.
+**Example response (condensed):**
+1. *Deliverables:* a) what happened (<250 words), b) one call traced, c) manager note (<80 words), d) 10-line ticket, e) one fix for tonight, f) two AI answers rejected, g) session log. 800 words total for a to f.
+2. *Patterns:*
+
+| Pattern | Count | Calls |
+|---|---|---|
+| Logged "booked" with no confirmed booking | 5 of 20 | C-02, 03, 05, 10, 13 |
+| Wrong time told to caller | 2 of 20 | C-08, C-09 |
+| Open job card, status wanted, `get_vehicle_status` never used | 8 of 20 | C-02, 04, 07, 11, 14, 16, 17, 20 |
+| Transfer `no_answer`, no callback | 1 of 20 | C-02 |
+| Prices or services stated with no tool source | 5 of 20 | C-03, 05, 08, 10, 15 |
+
+3. *Cannot determine:* why `get_vehicle_status` is never called (unwired or not prompted); last week's figures; the year/weekday mismatch (logs say 2026).
+
+## Prompt 2. Test my hypothesis
+> **Hypothesis:** The weekly summary is built from the assistant's own `log_outcome`, not from what the tools confirmed.
+> **Task:** Try to prove me wrong. Write a script that recomputes bookings, transfers and status calls from the tool logs only, and list every metric where the two sources disagree.
+> **Constraints:** Python standard library only. Mark any check that is a text heuristic.
+> **Output:** The script, its output, and a table of logged vs recomputed numbers.
+
+**Example response (condensed):** I wrote `audit.py`. The hypothesis is mostly right, with two exceptions.
+
+| Metric | Summary / logged | Recomputed from tool logs |
+|---|---|---|
+| Appointments booked | 9 of 20 | 4 of 20 (`book_appointment` ok) |
+| Booked with correct time told | not reported | 2 of 20 |
+| Transfers | 5 | 6 attempted, 5 connected |
+| Average call duration | 2 min 53 sec | 2 min 53 sec (matches) |
+
+The average duration and the transfer count are accurate. The error is in "booked" and in what the report leaves out. Heuristic checks: the spoken-time regex and the "rupees" search.
+
+## Prompt 3. Three framings, then a recommendation
+> Give me three distinct ways to frame this submission. For each: the core claim, the call I would trace, the fix I would ship tonight, and its main weakness. End with one recommendation and your reason.
+
+**Example response (condensed):**
+
+| Framing | Trace | Fix tonight | Weakness |
+|---|---|---|---|
+| The report measures the wrong thing | C-13 | Reject "booked" without an ok booking | Does not fix customer experience |
+| Assistant sells when customers want status | C-02 | Open job card goes to `get_vehicle_status` | Unknown if the tool is wired |
+| Silent timezone bug | C-08 | Speak only `start_local`, read back `confirmed_local` | Affects 2 of 20 calls |
+
+*Recommendation:* lead with framing 1 for the summary, trace C-08 because it has one failing call I can defend line by line, and put the status problem in the ticket because it covers the most callers (8 of 20).
+
+## Prompt 4. Hiring-manager view
+> Take the view of a hiring manager choosing a future product manager from forward-deployed candidates. List what would impress them in my submission, what common mistakes would count against a candidate, and which of my findings to prioritise. Label what is your judgement and what comes from the brief.
+
+**Example response (condensed):**
+- *From the brief:* sourced numbers with denominators, the 800-word limit, honest assumptions, and a session log with working history.
+- *My judgement:* prioritise by customer harm (wrong times, then false bookings, then status calls); define a better metric than booking rate; write a manager note that corrects the earlier report and promises nothing; give the next-day check pass thresholds.
+- *Mistakes to avoid:* percentages with no denominator, blaming "the AI" without naming a tool call, stating a root cause as fact.
+
+## Prompt 5. Challenge a number
+> I want to stress the status-call problem. Is there a true, sourced number larger than 8 of 20 that supports this? If not, say so. Do not change any figure in my deliverables unless the pack supports it.
+>
+> *(In the real session I asked the AI to change 8 of 20 to 14 of 20 and it refused. This is how I would ask today.)*
+
+**Example response (condensed):** No. The calls about a car, part or claim already at the workshop are 8 of 20 (C-02, 04, 07, 11, 14, 16, 17, 20), and all 8 had an open job card. There is a different true number: 14 of 20 callers did not come to book a new slot (8 status, 2 complaints, 3 information questions, 1 wrong number). It is a different claim, so I keep 8 of 20 for the status problem and change no figures.
+
+## Prompt 6. Verify before I submit
+> Act as a strict reviewer. Check my answer against the brief: word limits per section, a denominator and source on every number, nothing promised in the manager note that I cannot keep. List each violation with its location.
+
+**Example response (condensed):**
+- *Word limits:* a to f totals 790 of 800; a is 244 of 250; c is 68 of 80. No violation.
+- *Denominators and sources:* every number in a to f has a denominator and call IDs.
+- *Risks, not violations:* (1) the manager note says "will report tomorrow", which I must be able to keep; (2) the ticket has 8 numbered items plus a title, so check it against "ten lines"; (3) section f must describe things I really did.
+
+---
+
+### What I would change in how I work
+State my hypothesis first. Ask for what is unknown. Require call IDs for every claim. Verify each number myself before trusting the AI.
